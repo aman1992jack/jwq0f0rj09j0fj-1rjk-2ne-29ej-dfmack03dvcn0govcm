@@ -685,16 +685,16 @@ window.addEventListener('load',()=>{
 // GAS doGet 可以讀取 URL 參數處理請求
 async function gas(payload){
   try{
+    // 直接發送單純的 POST 請求，不帶任何會激怒 Google 的 headers 或 mode
     const resp = await fetch(GAS, {
-      method:'POST',
-      headers:{'Content-Type':'text/plain'},
-      body: JSON.stringify(payload),
-      mode:'no-cors'  // 避免 CORS 問題
+      method: 'POST',
+      body: JSON.stringify(payload)
     });
-    // no-cors 回傳 opaque response，需要用 jsonp 或其他方式
-    // 改用 GET + URL params 方式
-    return await gasGET(payload);
-  }catch(e){return{success:false,error:e.message};}
+    // 直接解析後端傳回來的資料
+    return await resp.json();
+  }catch(e){
+    return {success: false, error: e.message};
+  }
 }
 
 async function gasGET(payload){
