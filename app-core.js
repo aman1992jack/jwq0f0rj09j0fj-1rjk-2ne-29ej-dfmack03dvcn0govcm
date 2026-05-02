@@ -1,20 +1,15 @@
 /* ═══════════════════════════════════════════════════════════════
    存錢冠 app-core.js — 本地端主程式
-   版本：v2.0（模組化拆分）
+   版本：v2.1（分類管理 + 動態資料 + 防誤觸 Swipe）
    職責：所有本地記帳邏輯、畫面渲染、圖表計算
    資料層：localStorage（key = 'cg'）
    ═══════════════════════════════════════════════════════════════ */
 
 // ══════════════════════════════════════════
-// ① 分類資料（SUBS / CATS）
-//    ic 欄位：目前仍使用 Emoji
-//    ★ 任務三備注：若要切換為 CSS Sprite，
-//      把 ic 改為對應的 CSS class 名稱，
-//      例如 {ic:'icon-breakfast', nm:'早餐', ...}
-//      並在渲染函式中用 <div class="sprite-icon ${s.ic}"> 取代 Emoji
+// ① 預設分類資料（僅作為初始化種子）
 // ══════════════════════════════════════════
 
-var SUBS = [
+var DEFAULT_SUBS = [
   // ── 支出：飲食 ─────────────────────────
   {ic:'🌅', nm:'早餐',    cat:'飲食',    t:'e'},
   {ic:'🍱', nm:'午餐',    cat:'飲食',    t:'e'},
@@ -80,29 +75,11 @@ var SUBS = [
   {ic:'📡', nm:'eSIM分潤', cat:'被動收入', t:'i'}
 ];
 
-// 類別圖示對照表
-var CATS = {
+var DEFAULT_CATS = {
   飲食:'🍽️', 服裝:'👗', 住宿:'🏠', 交通:'🚇', 貓咪:'🐱',
   娛樂:'🎮', 生產力:'💡', 其他:'📦',
   固定收入:'💼', 不固定收入:'💸', 被動收入:'📈'
 };
-
-// ── 分類工具函式 ──────────────────────────────
-function catIc(c){ return CATS[c] || '📦'; }
-
-function subIc(nm){
-  for(var i = 0; i < SUBS.length; i++){
-    if(SUBS[i].nm === nm) return SUBS[i].ic;
-  }
-  return '📦';
-}
-
-function subInfo(nm){
-  for(var i = 0; i < SUBS.length; i++){
-    if(SUBS[i].nm === nm) return SUBS[i];
-  }
-  return null;
-}
 
 
 // ══════════════════════════════════════════
@@ -122,8 +99,54 @@ function setTxns(a){ var d = db(); d.txns = a; save(d); }
 function getFixed(){ return db().fixed || []; }
 function setFixed(a){ var d = db(); d.fixed = a; save(d); }
 
+// ── 動態分類存取 ──────────────────────────
+function getSubs(){ return db().subs || []; }
+function setSubs(a){ var d = db(); d.subs = a; save(d); }
+
+function getCats(){
+  var d = db();
+  return d.cats || {};
+}
+function setCats(o){ var d = db(); d.cats = o; save(d); }
+
+// 初始化分類（首次使用時寫入預設值，並補上 id/ts）
+function initSubs(){
+  var d = db();
+  if(!d.subs || !d.subs.length){
+    var ts = Date.now();
+    var seeded = DEFAULT_SUBS.map(function(s, i){
+      return { id: uid(), ts: ts + i, ic: s.ic, nm: s.nm, cat: s.cat, t: s.t };
+    });
+    d.subs = seeded;
+    d.cats = JSON.parse(JSON.stringify(DEFAULT_CATS));
+    save(d);
+  }
+}
+
 function uid(){
   return 'u' + Date.now() + 'r' + (Math.random() * 9999 | 0);
+}
+
+// ── 動態分類工具函式 ──────────────────────
+function catIc(c){
+  var cats = getCats();
+  return cats[c] || '📦';
+}
+
+function subIc(nm){
+  var subs = getSubs();
+  for(var i = 0; i < subs.length; i++){
+    if(subs[i].nm === nm) return subs[i].ic;
+  }
+  return '📦';
+}
+
+function subInfo(nm){
+  var subs = getSubs();
+  for(var i = 0; i < subs.length; i++){
+    if(subs[i].nm === nm) return subs[i];
+  }
+  return null;
 }
 
 
@@ -136,6 +159,8 @@ var ADD_TYPE = 'e', CALC_VAL = '', CALC_EXPR = '', SEL_SUB = '';
 var AF_TYPE = 'e', AF_DAY = '', AF_EDITING = null;
 var CONFIRM_CB = null;
 var PIE_CHART = null;
+// 分類管理狀態
+var CM_TYPE = 'e', CM_EDITING = null;
 
 
 // ══════════════════════════════════════════
@@ -144,6 +169,9 @@ var PIE_CHART = null;
 
 window.onload = function(){
   try {
+    // 初始化分類資料（首次才寫入）
+    initSubs();
+
     // 月份
     var now  = new Date();
     CUR_YR   = now.getFullYear();
@@ -307,7 +335,6 @@ function renderHome(){
 // ══════════════════════════════════════════
 
 function buildTxnList(txns){
-  // 依日期分組
   var dayMap = {};
   for(var i = 0; i < txns.length; i++){
     var t = txns[i];
@@ -368,7 +395,6 @@ function buildTxnList(txns){
   el.innerHTML = html;
 }
 
-// dataset 包裝（避免 inline JS 引號衝突）
 function editTxnById(btn){ openEditTxn(btn.dataset.id); }
 function delTxnById(btn){ delTxn(btn.dataset.id, decodeURIComponent(btn.dataset.nm || '')); }
 
@@ -437,7 +463,7 @@ function setPieMo(mode, btn){
 // ══════════════════════════════════════════
 
 function buildCatGrid(type){
-  var subs = SUBS.filter(function(s){ return s.t === type; });
+  var subs = getSubs().filter(function(s){ return s.t === type; });
   SEL_SUB  = subs.length ? subs[0].nm : '';
 
   var html = '';
@@ -498,7 +524,7 @@ function cp(k){
 
   if(k === 'OK'){
     if(!CALC_VAL || CALC_VAL === '0'){ toast('⚠️ 請輸入金額', 'err'); return; }
-    var sub = subInfo(SEL_SUB) || SUBS[0];
+    var sub = subInfo(SEL_SUB) || getSubs()[0];
     var amt = parseFloat(CALC_VAL);
     if(isNaN(amt) || amt <= 0){ toast('⚠️ 無效金額', 'err'); return; }
 
@@ -509,9 +535,9 @@ function cp(k){
       id:     uid(),
       type:   ADD_TYPE,
       amount: amt,
-      cat:    sub.cat,
-      sub:    sub.nm,
-      ic:     sub.ic,
+      cat:    sub ? sub.cat : '',
+      sub:    sub ? sub.nm  : '',
+      ic:     sub ? sub.ic  : '💳',
       date:   d ? d.value : new Date().toISOString().split('T')[0],
       note:   n ? n.value : '',
       ts:     Date.now()
@@ -529,7 +555,6 @@ function cp(k){
     return;
   }
 
-  // 四則運算
   if(k === '÷' || k === '×' || k === '-' || k === '+'){
     CALC_EXPR = CALC_VAL + k;
     CALC_VAL  = '';
@@ -575,7 +600,7 @@ function setEditType(type){
 }
 
 function buildEditCatGrid(type, selNm){
-  var subs = SUBS.filter(function(s){ return s.t === type; });
+  var subs = getSubs().filter(function(s){ return s.t === type; });
   var html = '';
   for(var i = 0; i < subs.length; i++){
     var s  = subs[i];
@@ -724,7 +749,7 @@ function setAFtype(type, selNm){
   document.getElementById('af-te').className = 'type-toggle-btn' + (type === 'e' ? ' ae' : '');
   document.getElementById('af-ti').className = 'type-toggle-btn' + (type === 'i' ? ' ai' : '');
 
-  var subs = SUBS.filter(function(s){ return s.t === type; });
+  var subs = getSubs().filter(function(s){ return s.t === type; });
   var html = '';
   for(var i = 0; i < subs.length; i++){
     var s  = subs[i];
@@ -744,7 +769,7 @@ function pickAFcat(btn){
   btn.classList.add('on');
   var nm = decodeURIComponent(btn.dataset.nm || '');
   var n  = document.getElementById('af-name');
-  if(n && (!n.value || SUBS.some(function(s){ return s.nm === n.value; }))){
+  if(n && (!n.value || getSubs().some(function(s){ return s.nm === n.value; }))){
     n.value = nm;
   }
 }
@@ -776,7 +801,6 @@ function buildDayPicker(){
     wrap.innerHTML = html + '</div>';
 
   } else {
-    // yearly — 直接用 date input
     wrap.innerHTML =
       '<div class="form-row"><input class="form-input" id="af-yearly" type="date"' +
       ' onchange="AF_DAY=this.value"></div>';
@@ -849,27 +873,30 @@ function closeAFbg(e){
   if(e.target === document.getElementById('af-bg')) closeAF();
 }
 
-// Bottom Sheet 手勢支援
+// ══════════════════════════════════════════
+// 第一部分：Bottom Sheet 手勢 — 只綁定 handle
+// ══════════════════════════════════════════
+
 function initSwipe(){
-  var sheet = document.getElementById('af-sheet');
-  if(!sheet) return;
+  var handle = document.querySelector('#af-sheet .bsheet-handle');
+  var sheet  = document.getElementById('af-sheet');
+  if(!handle || !sheet) return;
   var sy = 0, mv = 0;
 
-  sheet.addEventListener('touchstart', function(e){
+  handle.addEventListener('touchstart', function(e){
     sy = e.touches[0].clientY; mv = 0;
   }, {passive: true});
 
-  sheet.addEventListener('touchmove', function(e){
+  handle.addEventListener('touchmove', function(e){
     mv = e.touches[0].clientY - sy;
-    if(mv > 0 && sheet.scrollTop === 0){
+    if(mv > 0){
       sheet.style.transform = 'translateY(' + mv + 'px)';
-      e.stopPropagation();
     }
   }, {passive: true});
 
-  sheet.addEventListener('touchend', function(){
+  handle.addEventListener('touchend', function(){
     sheet.style.transform = '';
-    if(mv > 100) closeAF();
+    if(mv > 80) closeAF();
     mv = 0;
   });
 }
@@ -907,7 +934,6 @@ function renderReport(){
   var maxC   = catArr.length ? catArr[0][1] : 1;
   var maxS   = subArr.length ? subArr[0][1] : 1;
 
-  // 類別長條
   var catH = '';
   for(var i = 0; i < catArr.length; i++){
     var e = catArr[i];
@@ -919,7 +945,6 @@ function renderReport(){
     catH += '<div class="cat-bar-amt">$' + fmt(e[1]) + '</div></div>';
   }
 
-  // 細項長條
   var subH = '';
   for(var i = 0; i < subArr.length; i++){
     var e = subArr[i];
@@ -956,7 +981,6 @@ function renderReport(){
     '<div id="rep-cat">' + (catH || '<div style="color:var(--t3);font-size:13px;padding:8px 0">本月尚無支出</div>') + '</div>' +
     '<div id="rep-sub" style="display:none">' + (subH || '<div style="color:var(--t3);font-size:13px;padding:8px 0">本月尚無細項</div>') + '</div>';
 
-  // 延遲繪製報表圓餅（等 DOM 就緒）
   setTimeout(function(){
     var ctx = document.getElementById('rep-pie');
     if(!ctx || typeof Chart === 'undefined') return;
@@ -1025,6 +1049,7 @@ function clearAllData(){
   showConfirm('確定要清除所有資料嗎？此操作無法復原！', function(){
     localStorage.removeItem('cg');
     toast('✅ 已清除');
+    initSubs();
     renderHome();
   });
 }
@@ -1066,4 +1091,160 @@ function showConfirm(msg, cb){
 function closeConfirm(){
   document.getElementById('confirm-bg').classList.remove('open');
   CONFIRM_CB = null;
+}
+
+
+// ══════════════════════════════════════════
+// ⑱ 分類管理（Category Manager）
+// ══════════════════════════════════════════
+
+function openCatManager(){
+  CM_TYPE    = 'e';
+  CM_EDITING = null;
+  go('s-catmgr');
+  renderCatMgr();
+}
+
+function swCatMgrTab(type, btn){
+  var tabs = document.querySelectorAll('#s-catmgr .tab-btn');
+  for(var i = 0; i < tabs.length; i++) tabs[i].classList.remove('on');
+  btn.classList.add('on');
+  CM_TYPE = type;
+  renderCatMgr();
+}
+
+function renderCatMgr(){
+  var subs = getSubs().filter(function(s){ return s.t === CM_TYPE; });
+  var el   = document.getElementById('catmgr-list');
+  if(!el) return;
+
+  if(!subs.length){
+    el.innerHTML = '<div class="empty-hint">尚無分類項目<br>點下方新增</div>';
+    return;
+  }
+
+  var html = '';
+  for(var i = 0; i < subs.length; i++){
+    var s = subs[i];
+    html += '<div class="cm-row">';
+    html += '<div class="cm-icon">' + s.ic + '</div>';
+    html += '<div class="cm-info">';
+    html += '<div class="cm-nm">' + s.nm + '</div>';
+    html += '<div class="cm-cat">' + s.cat + '</div>';
+    html += '</div>';
+    html += '<div class="txn-acts">';
+    html += '<button class="txn-btn" data-sid="' + s.id + '" onclick="editSubById(this)">✏️</button>';
+    html += '<button class="txn-btn del" data-sid="' + s.id + '" data-snm="' +
+            encodeURIComponent(s.nm) + '" onclick="delSubById(this)">🗑️</button>';
+    html += '</div></div>';
+  }
+  el.innerHTML = html;
+}
+
+function editSubById(btn){ openSubForm(btn.dataset.sid); }
+function delSubById(btn){
+  var nm = decodeURIComponent(btn.dataset.snm || '');
+  var id = btn.dataset.sid;
+  showConfirm('確定要刪除分類「' + nm + '」？', function(){
+    var subs = getSubs().filter(function(s){ return s.id !== id; });
+    setSubs(subs);
+    toast('✅ 已刪除分類');
+    renderCatMgr();
+    buildCatGrid(CM_TYPE);
+  });
+}
+
+// 分類表單
+var CM_FORM_TYPE = 'e';
+
+function openSubForm(editId){
+  CM_EDITING    = editId || null;
+  CM_FORM_TYPE  = CM_TYPE;
+
+  var subs = getSubs();
+  var existing = null;
+  if(editId){
+    for(var i = 0; i < subs.length; i++){
+      if(subs[i].id === editId){ existing = subs[i]; break; }
+    }
+  }
+
+  setText('subform-title', existing ? '編輯分類項目' : '新增分類項目');
+  document.getElementById('subform-ic').value  = existing ? existing.ic  : '';
+  document.getElementById('subform-nm').value  = existing ? existing.nm  : '';
+  document.getElementById('subform-cat').value = existing ? existing.cat : '';
+
+  // 類型切換按鈕
+  CM_FORM_TYPE = existing ? existing.t : CM_TYPE;
+  var btnE = document.getElementById('subform-te');
+  var btnI = document.getElementById('subform-ti');
+  if(btnE) btnE.className = 'type-toggle-btn' + (CM_FORM_TYPE === 'e' ? ' ae' : '');
+  if(btnI) btnI.className = 'type-toggle-btn' + (CM_FORM_TYPE === 'i' ? ' ai' : '');
+
+  document.getElementById('subform-bg').classList.add('open');
+}
+
+function setSubFormType(type){
+  CM_FORM_TYPE = type;
+  document.getElementById('subform-te').className = 'type-toggle-btn' + (type === 'e' ? ' ae' : '');
+  document.getElementById('subform-ti').className = 'type-toggle-btn' + (type === 'i' ? ' ai' : '');
+}
+
+function saveSubForm(){
+  var ic  = document.getElementById('subform-ic').value.trim();
+  var nm  = document.getElementById('subform-nm').value.trim();
+  var cat = document.getElementById('subform-cat').value.trim();
+
+  if(!nm)  { toast('⚠️ 請填入細項名稱', 'err'); return; }
+  if(!cat) { toast('⚠️ 請填入主分類', 'err');   return; }
+  if(!ic)  { toast('⚠️ 請填入 Emoji 圖示', 'err'); return; }
+
+  var subs = getSubs();
+
+  // 防呆：細項名稱不可重複（排除自身）
+  for(var i = 0; i < subs.length; i++){
+    if(subs[i].nm === nm && subs[i].id !== CM_EDITING){
+      toast('⚠️ 細項名稱「' + nm + '」已存在', 'err');
+      return;
+    }
+  }
+
+  if(CM_EDITING){
+    // 更新現有
+    for(var i = 0; i < subs.length; i++){
+      if(subs[i].id === CM_EDITING){
+        subs[i].ic  = ic;
+        subs[i].nm  = nm;
+        subs[i].cat = cat;
+        subs[i].t   = CM_FORM_TYPE;
+        subs[i].ts  = Date.now();
+        break;
+      }
+    }
+  } else {
+    // 新增
+    subs.push({ id: uid(), ts: Date.now(), ic: ic, nm: nm, cat: cat, t: CM_FORM_TYPE });
+  }
+
+  // 同步更新 cats 對照表（若主分類不存在則新增）
+  var cats = getCats();
+  if(!cats[cat]){
+    cats[cat] = ic;
+    setCats(cats);
+  }
+
+  setSubs(subs);
+  closeSubForm();
+  toast('✅ 分類已儲存');
+  renderCatMgr();
+  buildCatGrid(CM_TYPE);
+}
+
+function closeSubForm(){
+  document.getElementById('subform-bg').classList.remove('open');
+  CM_EDITING = null;
+}
+
+function closeSubFormBg(e){
+  if(e.target === document.getElementById('subform-bg')) closeSubForm();
 }
