@@ -211,6 +211,14 @@
       </div>
       <span class="set-right">›</span>
     </div>
+    <div class="set-sec">個人化</div>
+    <div class="set-item" onclick="openCatManager()">
+      <div class="set-left">
+        <div class="set-icon">🏷️</div>
+        <div><div class="set-title">分類管理</div><div class="set-sub">新增、編輯或刪除收支分類</div></div>
+      </div>
+      <span class="set-right">›</span>
+    </div>
     <div class="set-sec">外部連結</div>
     <!-- GAS 連線狀態 — gas-sync.js 動態更新此區塊 -->
     <div class="set-item" id="gas-status-item">
@@ -227,6 +235,24 @@
         <div><div class="set-title">雲端發票載具 AI 辨識</div><div class="set-sub" id="ai-scanner-sub">待啟用</div></div>
       </div>
       <span class="badge bl" id="ai-scanner-badge">截圖辨識</span>
+    </div>
+  </div>
+</div>
+
+<!-- CATEGORY MANAGER -->
+<div class="screen" id="s-catmgr">
+  <div class="scr-hdr">
+    <h2>分類管理</h2>
+    <span style="font-size:13px;color:var(--gold);cursor:pointer" onclick="go('s-settings')">← 返回</span>
+  </div>
+  <div class="tab-bar">
+    <button class="tab-btn on" onclick="swCatMgrTab('e',this)">💸 支出分類</button>
+    <button class="tab-btn" onclick="swCatMgrTab('i',this)">💰 收入分類</button>
+  </div>
+  <div class="scroll">
+    <div id="catmgr-list" style="padding:10px 14px"></div>
+    <div class="add-fixed-bar">
+      <button class="add-fixed-btn" onclick="openSubForm(null)">＋ 新增分類項目</button>
     </div>
   </div>
 </div>
@@ -322,6 +348,32 @@
     </div>
     <button class="modal-submit" onclick="saveEdit()">✓ 儲存變更</button>
     <button class="modal-cancel" onclick="closeModal('edit-modal')">取消</button>
+  </div>
+</div>
+
+<!-- SUBFORM MODAL — 新增/編輯分類項目 -->
+<div class="bsheet-bg" id="subform-bg" onclick="closeSubFormBg(event)">
+  <div class="bsheet" id="subform-sheet">
+    <div class="bsheet-handle"></div>
+    <div class="modal-title" id="subform-title">新增分類項目</div>
+    <div class="type-toggle">
+      <button class="type-toggle-btn ae" id="subform-te" onclick="setSubFormType('e')">💸 支出</button>
+      <button class="type-toggle-btn" id="subform-ti" onclick="setSubFormType('i')">💰 收入</button>
+    </div>
+    <div class="form-row">
+      <div class="form-label">Emoji 圖示（例：🍕）</div>
+      <input class="form-input" id="subform-ic" type="text" placeholder="輸入一個 Emoji" maxlength="4">
+    </div>
+    <div class="form-row">
+      <div class="form-label">細項名稱（例：早餐）</div>
+      <input class="form-input" id="subform-nm" type="text" placeholder="不可與現有細項重複">
+    </div>
+    <div class="form-row">
+      <div class="form-label">主分類（例：飲食）</div>
+      <input class="form-input" id="subform-cat" type="text" placeholder="歸屬的主分類名稱">
+    </div>
+    <button class="modal-submit" onclick="saveSubForm()">✓ 儲存</button>
+    <button class="modal-cancel" onclick="closeSubForm()">取消</button>
   </div>
 </div>
 
