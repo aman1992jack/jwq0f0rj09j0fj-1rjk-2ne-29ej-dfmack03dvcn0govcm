@@ -144,15 +144,6 @@ var PIE_CHART = null;
 
 window.onload = function(){
   try {
-    // Logo（讀取 <meta name="logo"> 的 base64）
-    var logoSrc = (document.querySelector('meta[name="logo"]') || {}).content || '';
-    var logoHome = document.getElementById('logo-home');
-    var logoSet  = document.getElementById('logo-set');
-    var ati      = document.getElementById('ati');
-    if(logoHome) logoHome.src = logoSrc;
-    if(logoSet)  logoSet.src  = logoSrc;
-    if(ati)      ati.href     = logoSrc;
-
     // 月份
     var now  = new Date();
     CUR_YR   = now.getFullYear();
