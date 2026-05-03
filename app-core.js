@@ -880,34 +880,42 @@ function closeAFbg(e){
 function initSwipe(){
   // 抓取畫面上所有的 bottom sheet
   var sheets = document.querySelectorAll('.bsheet');
-  
+
   for(var i = 0; i < sheets.length; i++){
     (function(sheet){
       var handle = sheet.querySelector('.bsheet-handle');
-      var bg = sheet.closest('.bsheet-bg');
+      var bg     = sheet.closest('.bsheet-bg');
       if(!handle || !bg) return;
-      
-      var sy = 0, mv = 0;
 
-      handle.addEventListener('touchstart', function(e){
-        sy = e.touches[0].clientY; 
-        mv = 0;
-        sheet.style.transition = 'none'; // 取消動畫，緊跟手指
-      }, {passive: true});
+      var sy = 0, mv = 0, dragging = false;
 
-      handle.addEventListener('touchmove', function(e){
-        mv = e.touches[0].clientY - sy;
-        if(mv > 0){
-          sheet.style.transform = 'translateY(' + mv + 'px)';
-        }
-      }, {passive: true});
+      // ── 工具：強制清除所有行內手勢樣式 ──────────────────────
+      function resetStyle(){
+        sheet.style.transition = '';
+        sheet.style.transform  = '';
+      }
 
-      handle.addEventListener('touchend', function(){
-        sheet.style.transition = ''; // 恢復 CSS 動畫
-        sheet.style.transform = '';  // 絕對要清空行內樣式，否則會卡在半空中！
-        
-        if(mv > 50){ 
-          // 根據是哪個 sheet，呼叫對應的正確關閉函式，確保狀態能重置不當機
+      // ── 工具：平滑回彈到頂部 ─────────────────────────────
+      function snapBack(){
+        sheet.style.transition = 'transform 0.25s ease';
+        sheet.style.transform  = 'translateY(0)';
+        // 動畫結束後徹底清空行內樣式，避免殘留
+        sheet.addEventListener('transitionend', function onEnd(){
+          sheet.removeEventListener('transitionend', onEnd);
+          resetStyle();
+        });
+      }
+
+      // ── 工具：關閉對應的 sheet（含清除遮罩） ─────────────────
+      function closeSheet(){
+        // 先用動畫滑出畫面底部，再執行正式關閉函式
+        sheet.style.transition = 'transform 0.25s ease';
+        sheet.style.transform  = 'translateY(100%)';
+        sheet.addEventListener('transitionend', function onEnd(){
+          sheet.removeEventListener('transitionend', onEnd);
+          // 徹底清空行內樣式，避免下次開啟時殘留
+          resetStyle();
+          // 呼叫對應的正式關閉函式，確保 bg open class 被移除
           if(sheet.id === 'af-sheet' && typeof closeAF === 'function'){
             closeAF();
           } else if(sheet.id === 'subform-sheet' && typeof closeSubForm === 'function'){
@@ -915,9 +923,52 @@ function initSwipe(){
           } else {
             bg.classList.remove('open');
           }
+        });
+      }
+
+      // ── touchstart：記錄起點，關閉 CSS transition 緊跟手指 ──
+      handle.addEventListener('touchstart', function(e){
+        sy       = e.touches[0].clientY;
+        mv       = 0;
+        dragging = true;
+        sheet.style.transition = 'none';
+        sheet.style.transform  = 'translateY(0)';
+      }, {passive: true});
+
+      // ── touchmove：只允許向下拖（mv > 0） ────────────────────
+      handle.addEventListener('touchmove', function(e){
+        if(!dragging) return;
+        mv = e.touches[0].clientY - sy;
+        if(mv > 0){
+          sheet.style.transform = 'translateY(' + mv + 'px)';
         }
-        mv = 0;
+      }, {passive: true});
+
+      // ── touchend：判斷關閉或回彈，絕不讓 sheet 卡住 ──────────
+      handle.addEventListener('touchend', function(){
+        if(!dragging) return;
+        dragging = false;
+
+        var dist = mv;
+        mv = 0; // 立刻歸零，避免後續狀態污染
+
+        if(dist > 80){
+          // 下滑夠遠 → 關閉
+          closeSheet();
+        } else {
+          // 下滑不夠遠 → 平滑回彈
+          snapBack();
+        }
       });
+
+      // ── touchcancel：意外中斷（來電、通知等）→ 強制回彈 ──────
+      handle.addEventListener('touchcancel', function(){
+        if(!dragging) return;
+        dragging = false;
+        mv = 0;
+        snapBack();
+      });
+
     })(sheets[i]);
   }
 }
