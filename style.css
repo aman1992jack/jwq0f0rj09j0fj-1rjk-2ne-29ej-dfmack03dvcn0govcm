@@ -197,11 +197,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:-apple-sy
 .add-body{flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg)}
 
 /* ── 類別選擇 ─────────────────────────────── */
-.cat-wrap{flex-shrink:0;padding:8px 13px 4px}
+.cat-wrap{flex:1;display:flex;flex-direction:column;min-height:0;padding:8px 13px 4px}
 .cat-label{font-size:10px;color:var(--t2);font-weight:700;letter-spacing:.07em;margin-bottom:5px}
-.cat-scroll{overflow-y:auto;max-height:132px}
+.cat-scroll{flex:1;overflow-y:auto;min-height:0}
 .cat-scroll::-webkit-scrollbar{display:none}
-.cat-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:5px}
+.cat-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
 .cat-btn{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 2px;border-radius:9px;background:var(--s1);border:1px solid var(--bd);cursor:pointer}
 .cat-btn.on{background:var(--s2);border-color:var(--gold)}
 .cat-icon{font-size:20px}
@@ -321,7 +321,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:-apple-sy
 /* ── 底部 Sheet（Bottom Sheet）────────────── */
 .bsheet-bg{position:absolute;inset:0;background:rgba(0,0,0,0);z-index:100;pointer-events:none;transition:background .2s}
 .bsheet-bg.open{background:rgba(0,0,0,.76);pointer-events:all}
-.bsheet{position:absolute;bottom:0;left:0;right:0;background:var(--s1);border-radius:20px 20px 0 0;max-height:90vh;overflow-y:auto;transform:translateY(100%);transition:transform .25s cubic-bezier(.4,0,.2,1)}
+.bsheet{position:absolute;bottom:0;left:0;right:0;background:var(--s1);border-radius:20px 20px 0 0;max-height:90vh;overflow-y:auto;transform:translateY(100%);transition:transform .25s cubic-bezier(.4,0,.2,1);padding-bottom:max(env(safe-area-inset-bottom),40px)}
 .bsheet::-webkit-scrollbar{display:none}
 .bsheet-bg.open .bsheet{transform:translateY(0)}
 /* 放大底部 Sheet 的拖曳觸控區，解決極難按到的問題 */
