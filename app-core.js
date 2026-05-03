@@ -874,17 +874,17 @@ function closeAFbg(e){
 }
 
 // ══════════════════════════════════════════
-// 第一部分：Bottom Sheet 手勢 — 通用化與流暢化
+// 第一部分：Bottom Sheet 手勢 — 通用化與流暢化 (修復卡頓Bug版)
 // ══════════════════════════════════════════
 
 function initSwipe(){
-  // 抓取畫面上所有的 bottom sheet (包含新增固定項目、新增分類等)
+  // 抓取畫面上所有的 bottom sheet
   var sheets = document.querySelectorAll('.bsheet');
   
   for(var i = 0; i < sheets.length; i++){
     (function(sheet){
       var handle = sheet.querySelector('.bsheet-handle');
-      var bg = sheet.closest('.bsheet-bg'); // 找到對應的半透明黑底
+      var bg = sheet.closest('.bsheet-bg');
       if(!handle || !bg) return;
       
       var sy = 0, mv = 0;
@@ -892,7 +892,7 @@ function initSwipe(){
       handle.addEventListener('touchstart', function(e){
         sy = e.touches[0].clientY; 
         mv = 0;
-        sheet.style.transition = 'none'; // 拖曳時取消 CSS 動畫，讓視窗緊跟手指，消除阻力感
+        sheet.style.transition = 'none'; // 取消動畫，緊跟手指
       }, {passive: true});
 
       handle.addEventListener('touchmove', function(e){
@@ -903,12 +903,18 @@ function initSwipe(){
       }, {passive: true});
 
       handle.addEventListener('touchend', function(){
-        sheet.style.transition = ''; // 手指放開後恢復 CSS 動畫
-        if(mv > 50){ // 只要往下滑動超過 50px 就視為關閉
-          bg.classList.remove('open');
-          // 關閉時若有特定的編輯狀態變數，可以在這裡重置，例如 CM_EDITING = null;
-        } else {
-          sheet.style.transform = ''; // 滑動不夠遠，回彈到原位
+        sheet.style.transition = ''; // 恢復 CSS 動畫
+        sheet.style.transform = '';  // 絕對要清空行內樣式，否則會卡在半空中！
+        
+        if(mv > 50){ 
+          // 根據是哪個 sheet，呼叫對應的正確關閉函式，確保狀態能重置不當機
+          if(sheet.id === 'af-sheet' && typeof closeAF === 'function'){
+            closeAF();
+          } else if(sheet.id === 'subform-sheet' && typeof closeSubForm === 'function'){
+            closeSubForm();
+          } else {
+            bg.classList.remove('open');
+          }
         }
         mv = 0;
       });
